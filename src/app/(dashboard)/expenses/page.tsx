@@ -59,7 +59,6 @@ export default function ExpensesPage() {
     const { data } = await supabase.from('expenses').select('*').eq('site_id', activeSite.id).order('expense_date', { ascending: false })
     setExpenses((data ?? []) as Expense[])
     
-    // Kategori bazlı toplamlar
     const categoryTotals: Record<string, number> = {}
     data?.forEach(exp => {
       categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount
@@ -172,7 +171,10 @@ export default function ExpensesPage() {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) => `${name} (%${(percent * 100).toFixed(0)})`}
+                label={({ name, percent }) => {
+                  const percentage = percent ? (percent * 100).toFixed(0) : '0'
+                  return `${name} (%${percentage})`
+                }}
                 outerRadius={120}
                 fill="#8884d8"
                 dataKey="value"

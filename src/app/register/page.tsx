@@ -20,15 +20,31 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
+  function getRegisterErrorMessage(message?: string) {
+    if (!message) return 'Kayıt oluşturulamadı.'
+    if (message === 'User already registered') {
+      return 'Bu e-posta ile daha önce hesap oluşturulmuş.'
+    }
+    return message
+  }
+
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
+    const normalizedEmail = email.trim().toLowerCase()
+    const normalizedPassword = password.trim()
+
+    if (!normalizedEmail || !normalizedPassword) {
+      setError('E-posta ve şifre alanlarını doldurun.')
+      return
+    }
+
     setLoading(true)
     setError('')
     
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({ 
-        email, 
-        password,
+        email: normalizedEmail,
+        password: normalizedPassword,
         options: {
           data: {
             full_name: fullName
@@ -37,7 +53,7 @@ export default function RegisterPage() {
       })
       
       if (authError || !authData.user) { 
-        setError(authError?.message ?? 'Kayıt oluşturulamadı.') 
+        setError(getRegisterErrorMessage(authError?.message)) 
         setLoading(false) 
         return 
       }
@@ -46,7 +62,7 @@ export default function RegisterPage() {
         .from('companies')
         .insert({ 
           name: companyName, 
-          email, 
+          email: normalizedEmail, 
           phone: companyPhone || null, 
           address: companyCity || null 
         })
@@ -154,12 +170,12 @@ export default function RegisterPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1.5">E-posta *</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@sirket.com" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all" />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@sirket.com" autoComplete="email" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all" />
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1.5">Şifre *</label>
                 <div className="relative">
-                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="En az 6 karakter" required minLength={6} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all" />
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="En az 6 karakter" autoComplete="new-password" required minLength={6} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>

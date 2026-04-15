@@ -4,24 +4,10 @@ import { useState, useEffect, createContext, useContext } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ToastProvider } from '@/components/ui/Toast'
 import {
-  Upload,
-  Bell,
-  Building2, 
-  LayoutDashboard, 
-  Users, 
-  Home, 
-  CreditCard,
-  TrendingDown, 
-  MessageSquare, 
-  Settings, 
-  LogOut, 
-  ChevronDown,
-  Menu, 
-  Plus, 
-  FileText, 
-  Banknote
+  Building2, LayoutDashboard, Users, Home, CreditCard,
+  TrendingDown, MessageSquare, Settings, LogOut, ChevronDown,
+  Menu, Plus, FileText, Banknote
 } from 'lucide-react'
 
 interface Site {
@@ -40,11 +26,7 @@ interface SiteContextType {
   setActiveSite: (site: Site) => void
 }
 
-const SiteContext = createContext<SiteContextType>({ 
-  sites: [], 
-  activeSite: null, 
-  setActiveSite: () => {} 
-})
+const SiteContext = createContext<SiteContextType>({ sites: [], activeSite: null, setActiveSite: () => {} })
 
 export const useSite = () => useContext(SiteContext)
 
@@ -55,9 +37,7 @@ const navItems = [
   { href: '/dues', icon: CreditCard, label: 'Aidat Takibi' },
   { href: '/expenses', icon: TrendingDown, label: 'Giderler' },
   { href: '/banking', icon: Banknote, label: 'Banka Hesapları' },
-  { href: '/bank-import', icon: Upload, label: 'Banka İçe Aktar' },
   { href: '/reports', icon: FileText, label: 'Raporlar' },
-  { href: '/notifications', icon: Bell, label: 'Bildirimler' },
   { href: '/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
 ]
 
@@ -127,7 +107,7 @@ function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, prof
   )
 }
 
-function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [sites, setSites] = useState<Site[]>([])
@@ -221,13 +201,5 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </SiteContext.Provider>
-  )
-}
-
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <ToastProvider>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
-    </ToastProvider>
   )
 }

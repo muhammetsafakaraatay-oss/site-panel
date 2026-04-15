@@ -19,14 +19,25 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError('E-posta veya şifre hatalı.'); setLoading(false); return }
+    
+    const normalizedEmail = email.trim().toLowerCase()
+    const { error } = await supabase.auth.signInWithPassword({ 
+      email: normalizedEmail, 
+      password 
+    })
+    
+    if (error) { 
+      setError('E-posta veya şifre hatalı.') 
+      setLoading(false) 
+      return 
+    }
+    
     router.push('/')
     router.refresh()
   }
 
   return (
-    <div className="flex w-full">
+    <div className="flex w-full min-h-screen">
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#1a1f2e] to-[#0F1117] items-center justify-center relative overflow-hidden p-12">
         <div className="absolute inset-0 opacity-10">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -72,6 +83,11 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+            </div>
+            <div className="text-right">
+              <Link href="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                Şifremi unuttum?
+              </Link>
             </div>
             {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm">{error}</div>}
             <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 mt-2">
