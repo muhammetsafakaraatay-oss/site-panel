@@ -4,10 +4,24 @@ import { useState, useEffect, createContext, useContext } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { ToastProvider } from '@/components/ui/Toast'
 import {
-  Building2, LayoutDashboard, Users, Home, CreditCard,
-  TrendingDown, MessageSquare, Settings, LogOut, ChevronDown,
-  Menu, Plus, FileText, Banknote
+  Upload,
+  Bell,
+  Building2, 
+  LayoutDashboard, 
+  Users, 
+  Home, 
+  CreditCard,
+  TrendingDown, 
+  MessageSquare, 
+  Settings, 
+  LogOut, 
+  ChevronDown,
+  Menu, 
+  Plus, 
+  FileText, 
+  Banknote
 } from 'lucide-react'
 
 interface Site {
@@ -26,34 +40,30 @@ interface SiteContextType {
   setActiveSite: (site: Site) => void
 }
 
-const SiteContext = createContext<SiteContextType>({ sites: [], activeSite: null, setActiveSite: () => {} })
+const SiteContext = createContext<SiteContextType>({ 
+  sites: [], 
+  activeSite: null, 
+  setActiveSite: () => {} 
+})
 
 export const useSite = () => useContext(SiteContext)
-
-interface SidebarProps {
-  activeSite: Site | null
-  sites: Site[]
-  setActiveSite: (site: Site) => void
-  siteOpen: boolean
-  setSiteOpen: (open: boolean) => void
-  profile: Profile | null
-  pathname: string
-  setSidebarOpen: (open: boolean) => void
-  handleLogout: () => Promise<void>
-}
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/residents', icon: Users, label: 'Sakinler' },
+  { href: '/residents/import', icon: Upload, label: 'Toplu Sakin Ekle' },
   { href: '/units', icon: Home, label: 'Daireler' },
+  { href: '/units/import', icon: Upload, label: 'Toplu Daire Ekle' },
   { href: '/dues', icon: CreditCard, label: 'Aidat Takibi' },
   { href: '/expenses', icon: TrendingDown, label: 'Giderler' },
   { href: '/banking', icon: Banknote, label: 'Banka Hesapları' },
+  { href: '/bank-import', icon: Upload, label: 'Banka Ice Aktar' },
   { href: '/reports', icon: FileText, label: 'Raporlar' },
+  { href: '/notifications', icon: Bell, label: 'Bildirimler' },
   { href: '/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
 ]
 
-function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, profile, pathname, setSidebarOpen, handleLogout }: SidebarProps) {
+function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, profile, pathname, setSidebarOpen, handleLogout }: any) {
   return (
     <aside className="flex flex-col h-full bg-[#13161f] border-r border-white/5 w-64">
       <div className="px-5 py-5 border-b border-white/5">
@@ -72,7 +82,7 @@ function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, prof
               <div className="w-6 h-6 bg-indigo-500/20 rounded-md flex items-center justify-center flex-shrink-0">
                 <Building2 className="w-3 h-3 text-indigo-400" />
               </div>
-              <span className="text-white text-sm truncate">{activeSite?.name ?? 'Site seçin'}</span>
+              <span className="text-white text-sm truncate">{activeSite?.name ?? 'Site secin'}</span>
             </div>
             <ChevronDown className={`w-4 h-4 text-gray-500 flex-shrink-0 transition-transform ${siteOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -94,7 +104,7 @@ function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, prof
         </div>
       </div>
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-        <p className="text-xs text-gray-600 uppercase tracking-wider mb-2 px-2">Menü</p>
+        <p className="text-xs text-gray-600 uppercase tracking-wider mb-2 px-2">Menu</p>
         {navItems.map((item) => {
           const active = pathname === item.href
           return (
@@ -109,7 +119,7 @@ function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, prof
           <Settings className="w-4 h-4" />Ayarlar
         </Link>
         <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/5 transition-all">
-          <LogOut className="w-4 h-4" />Çıkış Yap
+          <LogOut className="w-4 h-4" />Cikis Yap
         </button>
         <div className="px-3 py-2 mt-1">
           <p className="text-xs text-gray-600 truncate">{profile?.full_name ?? ''}</p>
@@ -119,14 +129,14 @@ function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, prof
   )
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [sites, setSites] = useState<Site[]>([])
   const [activeSite, setActiveSiteState] = useState<Site | null>(null)
   const [siteOpen, setSiteOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<{ full_name: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -213,5 +223,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
     </SiteContext.Provider>
+  )
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </ToastProvider>
   )
 }
