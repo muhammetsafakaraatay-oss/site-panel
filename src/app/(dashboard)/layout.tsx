@@ -30,6 +30,18 @@ const SiteContext = createContext<SiteContextType>({ sites: [], activeSite: null
 
 export const useSite = () => useContext(SiteContext)
 
+interface SidebarProps {
+  activeSite: Site | null
+  sites: Site[]
+  setActiveSite: (site: Site) => void
+  siteOpen: boolean
+  setSiteOpen: (open: boolean) => void
+  profile: Profile | null
+  pathname: string
+  setSidebarOpen: (open: boolean) => void
+  handleLogout: () => Promise<void>
+}
+
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/residents', icon: Users, label: 'Sakinler' },
@@ -41,7 +53,7 @@ const navItems = [
   { href: '/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
 ]
 
-function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, profile, pathname, setSidebarOpen, handleLogout }: any) {
+function Sidebar({ activeSite, sites, setActiveSite, siteOpen, setSiteOpen, profile, pathname, setSidebarOpen, handleLogout }: SidebarProps) {
   return (
     <aside className="flex flex-col h-full bg-[#13161f] border-r border-white/5 w-64">
       <div className="px-5 py-5 border-b border-white/5">
@@ -114,7 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [activeSite, setActiveSiteState] = useState<Site | null>(null)
   const [siteOpen, setSiteOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [profile, setProfile] = useState<{ full_name: string | null } | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

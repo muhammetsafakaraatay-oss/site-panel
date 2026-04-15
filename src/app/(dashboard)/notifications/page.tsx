@@ -1,37 +1,112 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSite } from '../layout'
 import { Bell, CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react'
 
+interface NotificationResident {
+  full_name: string | null
+  phone: string | null
+}
+
+interface NotificationDue {
+  title: string | null
+  amount: number | null
+  period: string | null
+}
+
+interface PaymentNotification {
+  id: string
+  due_id: string
+  amount: number
+  payment_date: string
+  notes: string | null
+  residents: NotificationResident | NotificationResident[] | null
+  dues: NotificationDue | NotificationDue[] | null
+}
+
+function getNotificationResident(
+  residents: PaymentNotification['residents'],
+) {
+  if (Array.isArray(residents)) {
+    return residents[0] ?? null
+  }
+
+  return residents
+}
+
+function getNotificationDue(
+  dues: PaymentNotification['dues'],
+) {
+  if (Array.isArray(dues)) {
+    return dues[0] ?? null
+  }
+
+  return dues
+}
+
 export default function NotificationsPage() {
   const { activeSite } = useSite()
-  const [notifications, setNotifications] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [notifications, setNotifications] = useState<PaymentNotification[]>([])
+  const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (activeSite) {
-      loadNotifications()
-    }
-  }, [activeSite])
+  const loadNotifications = useCallback(async () => {
+    if (!activeSite) return
+    const siteId = activeSite.id
 
-  async function loadNotifications() {
     const supabase = createClient()
+    setLoading(true)
+
     const { data } = await supabase
       .from('payment_notifications')
       .select(`
-        *,
+        id,
+        due_id,
+        amount,
+        payment_date,
+        notes,
         residents (full_name, phone),
         dues (title, amount, period)
       `)
+      .eq('site_id', siteId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
-    
-    setNotifications(data || [])
+
+    setNotifications((data ?? []) as unknown as PaymentNotification[])
     setLoading(false)
-  }
+  }, [activeSite])
+
+  useEffect(() => {
+    if (!activeSite) return
+    const siteId = activeSite.id
+
+    async function loadInitialNotifications() {
+      const supabase = createClient()
+      setLoading(true)
+
+      const { data } = await supabase
+        .from('payment_notifications')
+        .select(`
+          id,
+          due_id,
+          amount,
+          payment_date,
+          notes,
+          residents (full_name, phone),
+          dues (title, amount, period)
+        `)
+        .eq('site_id', siteId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+
+      setNotifications((data ?? []) as unknown as PaymentNotification[])
+      setLoading(false)
+    }
+
+    void loadInitialNotifications()
+  }, [activeSite])
 
   async function handleAction(notificationId: string, dueId: string, approve: boolean) {
     setProcessing(notificationId)
@@ -43,7 +118,7 @@ export default function NotificationsPage() {
     })
     
     if (res.ok) {
-      loadNotifications()
+      await loadNotifications()
     } else {
       alert('Bir hata oluştu')
     }
@@ -83,12 +158,16 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {notifications.map(notif => (
-            <div key={notif.id} className="bg-[#13161f] border border-white/10 rounded-xl p-5">
+          {notifications.map((notif) => {
+            const resident = getNotificationResident(notif.residents)
+            const due = getNotificationDue(notif.dues)
+
+            return (
+              <div key={notif.id} className="bg-[#13161f] border border-white/10 rounded-xl p-5">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h3 className="text-white font-semibold">{notif.residents?.full_name}</h3>
-                  <p className="text-gray-500 text-sm">{notif.residents?.phone}</p>
+                  <h3 className="text-white font-semibold">{resident?.full_name}</h3>
+                  <p className="text-gray-500 text-sm">{resident?.phone}</p>
                 </div>
                 <span className="flex items-center gap-1 text-yellow-400 text-xs bg-yellow-500/10 px-2 py-1 rounded-full">
                   <Clock className="w-3 h-3" /> Bekliyor
@@ -97,11 +176,11 @@ export default function NotificationsPage() {
               <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-white/5 rounded-xl">
                 <div>
                   <p className="text-gray-500 text-xs">Aidat</p>
-                  <p className="text-white text-sm">{notif.dues?.title}</p>
+                  <p className="text-white text-sm">{due?.title}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">Dönem</p>
-                  <p className="text-white text-sm">{notif.dues?.period}</p>
+                  <p className="text-white text-sm">{due?.period}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">Tutar</p>
@@ -128,8 +207,9 @@ export default function NotificationsPage() {
                   Reddet
                 </button>
               </div>
-            </div>
-          ))}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

@@ -1,35 +1,42 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSite } from '../layout'
-import { MessageSquare, Send, Users, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { MessageSquare, Send, AlertCircle, CheckCircle2 } from 'lucide-react'
+
+interface ResidentContact {
+  id: string
+  full_name: string
+  phone: string | null
+}
 
 export default function WhatsAppPage() {
   const { activeSite } = useSite()
-  const [residents, setResidents] = useState<any[]>([])
+  const [residents, setResidents] = useState<ResidentContact[]>([])
   const [selectedResidents, setSelectedResidents] = useState<string[]>([])
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
-    if (activeSite) {
-      loadResidents()
-    }
-  }, [activeSite])
+    if (!activeSite) return
+    const siteId = activeSite.id
 
-  async function loadResidents() {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('residents')
-      .select('id, full_name, phone')
-      .eq('site_id', activeSite?.id)
-      .eq('is_active', true)
-      .not('phone', 'is', null)
-    
-    setResidents(data || [])
-  }
+    async function loadInitialResidents() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('residents')
+        .select('id, full_name, phone')
+        .eq('site_id', siteId)
+        .eq('is_active', true)
+        .not('phone', 'is', null)
+
+      setResidents((data ?? []) as ResidentContact[])
+    }
+
+    void loadInitialResidents()
+  }, [activeSite])
 
   function toggleResident(id: string) {
     setSelectedResidents(prev => 

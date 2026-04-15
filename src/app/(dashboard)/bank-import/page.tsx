@@ -7,12 +7,65 @@ import { useToast } from '@/components/ui/Toast'
 import { Upload, CheckCircle2, AlertCircle, Loader2, Building2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
+type SpreadsheetRow = Record<string, string | number | null | undefined>
+
+interface BankTransaction {
+  date: string
+  description: string
+  amount: number
+  sender: string
+  reference: string
+}
+
+interface BankImportResident {
+  id: string
+  full_name: string | null
+  phone: string | null
+}
+
+interface BankImportUnit {
+  unit_no: string | number | null
+}
+
+interface PendingDue {
+  id: string
+  amount: number
+  period: string
+  title: string
+  residents: BankImportResident | BankImportResident[] | null
+  units: BankImportUnit | BankImportUnit[] | null
+}
+
+interface MatchedTransaction extends BankTransaction {
+  due: PendingDue
+}
+
+function getStringValue(value: string | number | null | undefined) {
+  return value == null ? '' : String(value)
+}
+
+function getUnitNo(units: PendingDue['units']) {
+  if (Array.isArray(units)) {
+    return units[0]?.unit_no?.toString() ?? ''
+  }
+
+  return units?.unit_no?.toString() ?? ''
+}
+
+function getResidentName(residents: PendingDue['residents']) {
+  if (Array.isArray(residents)) {
+    return residents[0]?.full_name?.toLowerCase() ?? ''
+  }
+
+  return residents?.full_name?.toLowerCase() ?? ''
+}
+
 export default function BankImportPage() {
   const { activeSite } = useSite()
   const { showToast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [matched, setMatched] = useState<any[]>([])
-  const [unmatched, setUnmatched] = useState<any[]>([])
+  const [matched, setMatched] = useState<MatchedTransaction[]>([])
+  const [unmatched, setUnmatched] = useState<BankTransaction[]>([])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -25,14 +78,14 @@ export default function BankImportPage() {
       const data = new Uint8Array(event.target?.result as ArrayBuffer)
       const workbook = XLSX.read(data, { type: 'array' })
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json(sheet)
-      
-      const transactions = rows.map((row: any) => ({
-        date: row['Tarih'] || row['İşlem Tarihi'] || '',
-        description: row['Açıklama'] || row['İşlem Açıklaması'] || '',
-        amount: parseFloat(row['Tutar']?.toString().replace(/\./g, '').replace(',', '.') || '0'),
-        sender: row['Gönderen'] || row['Alıcı'] || '',
-        reference: row['Referans'] || row['Dekont No'] || ''
+      const rows = XLSX.utils.sheet_to_json<SpreadsheetRow>(sheet)
+
+      const transactions: BankTransaction[] = rows.map((row) => ({
+        date: getStringValue(row['Tarih'] ?? row['İşlem Tarihi']),
+        description: getStringValue(row['Açıklama'] ?? row['İşlem Açıklaması']),
+        amount: parseFloat(getStringValue(row['Tutar']).replace(/\./g, '').replace(',', '.') || '0'),
+        sender: getStringValue(row['Gönderen'] ?? row['Alıcı']),
+        reference: getStringValue(row['Referans'] ?? row['Dekont No'])
       }))
 
       await matchTransactions(transactions)
@@ -40,7 +93,7 @@ export default function BankImportPage() {
     reader.readAsArrayBuffer(file)
   }
 
-  async function matchTransactions(transactions: any[]) {
+  async function matchTransactions(transactions: BankTransaction[]) {
     const supabase = createClient()
     
     const { data: pendingDues } = await supabase
@@ -56,17 +109,15 @@ export default function BankImportPage() {
       .eq('site_id', activeSite?.id)
       .eq('status', 'pending')
 
-    const matchedList: any[] = []
-    const unmatchedList: any[] = []
+    const matchedList: MatchedTransaction[] = []
+    const unmatchedList: BankTransaction[] = []
 
     for (const transaction of transactions) {
-      let matchedDue = null
+      let matchedDue: PendingDue | null = null
       
-      for (const due of pendingDues || []) {
-        // @ts-ignore - tip hatasını geçici olarak ignore et
-        const unitNo = due.units?.unit_no?.toString()
-        // @ts-ignore
-        const residentName = due.residents?.full_name?.toLowerCase()
+      for (const due of ((pendingDues ?? []) as PendingDue[])) {
+        const unitNo = getUnitNo(due.units)
+        const residentName = getResidentName(due.residents)
         const description = transaction.description?.toLowerCase()
         
         if (
@@ -80,10 +131,10 @@ export default function BankImportPage() {
       }
 
       if (matchedDue) {
-        matchedList.push({
-          ...transaction,
-          due: matchedDue
-        })
+          matchedList.push({
+            ...transaction,
+            due: matchedDue
+          })
       } else {
         unmatchedList.push(transaction)
       }
@@ -190,8 +241,8 @@ export default function BankImportPage() {
               <div key={idx} className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-white text-sm">{item.due.residents?.full_name}</p>
-                    <p className="text-gray-500 text-xs">Daire: {item.due.units?.unit_no} - {item.due.period}</p>
+                    <p className="text-white text-sm">{getResidentName(item.due.residents) || '-'}</p>
+                    <p className="text-gray-500 text-xs">Daire: {getUnitNo(item.due.units) || '-'} - {item.due.period}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-green-400 font-semibold">{item.amount} TL</p>

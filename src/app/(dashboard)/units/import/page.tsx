@@ -1,17 +1,30 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSite } from '../../layout'
 import { useToast } from '@/components/ui/Toast'
 import { Upload, Download, CheckCircle2, Loader2, Building2, Home } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
+type UnitImportRow = Record<string, string | number | null | undefined>
+
+function getRowValue(row: UnitImportRow, ...keys: string[]) {
+  for (const key of keys) {
+    const value = row[key]
+    if (value != null && value !== '') {
+      return String(value)
+    }
+  }
+
+  return ''
+}
+
 export default function ImportUnitsPage() {
   const { activeSite } = useSite()
   const { showToast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [preview, setPreview] = useState<any[]>([])
+  const [preview, setPreview] = useState<UnitImportRow[]>([])
 
   // Örnek Excel indir
   const downloadTemplate = () => {
@@ -38,8 +51,8 @@ export default function ImportUnitsPage() {
       const data = new Uint8Array(event.target?.result as ArrayBuffer)
       const workbook = XLSX.read(data, { type: 'array' })
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json(sheet)
-      
+      const rows = XLSX.utils.sheet_to_json<UnitImportRow>(sheet)
+
       setPreview(rows)
       setLoading(false)
     }
@@ -56,8 +69,8 @@ export default function ImportUnitsPage() {
     const blockMap = new Map()
     
     for (const item of preview) {
-      const blockName = item.block_name || item['Blok'] || item['block']
-      const unitNo = item.unit_no || item['Daire No'] || item['unit_no']
+      const blockName = getRowValue(item, 'block_name', 'Blok', 'block')
+      const unitNo = getRowValue(item, 'unit_no', 'Daire No')
       
       if (!blockName || !unitNo) continue
       
@@ -91,8 +104,8 @@ export default function ImportUnitsPage() {
     let fail = 0
     
     for (const item of preview) {
-      const blockName = item.block_name || item['Blok'] || item['block']
-      const unitNo = item.unit_no || item['Daire No'] || item['unit_no']
+      const blockName = getRowValue(item, 'block_name', 'Blok', 'block')
+      const unitNo = getRowValue(item, 'unit_no', 'Daire No')
       
       if (!blockName || !unitNo) continue
       
@@ -192,8 +205,8 @@ export default function ImportUnitsPage() {
               <tbody>
                 {preview.slice(0, 10).map((item, idx) => (
                   <tr key={idx} className="border-b border-white/5">
-                    <td className="py-2 text-white">{item.block_name || item['Blok'] || item['block']}</td>
-                    <td className="py-2 text-white">{item.unit_no || item['Daire No'] || item['unit_no']}</td>
+                    <td className="py-2 text-white">{getRowValue(item, 'block_name', 'Blok', 'block')}</td>
+                    <td className="py-2 text-white">{getRowValue(item, 'unit_no', 'Daire No')}</td>
                   </tr>
                 ))}
                 {preview.length > 10 && (

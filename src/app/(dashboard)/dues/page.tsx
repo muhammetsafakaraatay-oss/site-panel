@@ -97,8 +97,45 @@ export default function DuesPage() {
   }, [activeSite, filter, period])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!activeSite) return
+    const siteId = activeSite.id
+
+    async function loadCurrentPeriodDues() {
+      const supabase = createClient()
+      setLoading(true)
+      
+      let query = supabase
+        .from('dues')
+        .select(`
+          id,
+          amount,
+          due_date,
+          status,
+          title,
+          period,
+          residents (full_name, phone),
+          units (unit_no, blocks (name))
+        `)
+        .eq('site_id', siteId)
+        .eq('period', period)
+      
+      if (filter !== 'all') {
+        query = query.eq('status', filter)
+      }
+      
+      const { data, error } = await query.order('created_at')
+      
+      if (error) {
+        console.error('Dues yüklenirken hata:', error)
+        setDues([])
+      } else {
+        setDues(data as unknown as Due[])
+      }
+      setLoading(false)
+    }
+
+    void loadCurrentPeriodDues()
+  }, [activeSite, filter, period])
 
   async function handleGenerate() {
     if (!activeSite) return
@@ -116,7 +153,7 @@ export default function DuesPage() {
         showToast('success', `${data.inserted} aidat başarıyla oluşturuldu`)
         load()
       }
-    } catch (error) {
+    } catch {
       showToast('error', 'Aidat oluşturulurken bir hata oluştu')
     }
     setGenerating(false)

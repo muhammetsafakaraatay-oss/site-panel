@@ -6,9 +6,34 @@ import { useSite } from '../layout'
 import { formatCurrency } from '@/lib/utils'
 import { Building2, CreditCard, Users, TrendingDown, AlertCircle, Home, DollarSign, Clock } from 'lucide-react'
 
+interface DashboardStats {
+  totalResidents: number
+  totalUnits: number
+  pendingDues: number
+  overdueAmount: number
+  monthlyExpenses: number
+  totalCollected: number
+}
+
+interface RecentActivity {
+  amount: number
+  paid_at: string | null
+  residents: { full_name: string | null } | { full_name: string | null }[] | null
+}
+
+function getResidentFullName(
+  residents: RecentActivity['residents'],
+) {
+  if (Array.isArray(residents)) {
+    return residents[0]?.full_name ?? '-'
+  }
+
+  return residents?.full_name ?? '-'
+}
+
 export default function DashboardPage() {
   const { activeSite } = useSite()
-  const [stats, setStats] = useState({ 
+  const [stats, setStats] = useState<DashboardStats>({ 
     totalResidents: 0, 
     totalUnits: 0,
     pendingDues: 0, 
@@ -16,32 +41,30 @@ export default function DashboardPage() {
     monthlyExpenses: 0,
     totalCollected: 0
   })
-  const [recentActivities, setRecentActivities] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!activeSite) {
-      setLoading(false)
-      return
-    }
-    
+    if (!activeSite) return
+    const siteId = activeSite.id
+
     async function load() {
       const supabase = createClient()
       setLoading(true)
       
       try {
         const [residents, units, dues, expenses, recentPayments] = await Promise.all([
-          supabase.from('residents').select('id', { count: 'exact', head: false }).eq('site_id', activeSite!.id).eq('is_active', true),
-          supabase.from('units').select('id', { count: 'exact', head: false }).eq('site_id', activeSite!.id),
-          supabase.from('dues').select('amount, status').eq('site_id', activeSite!.id).in('status', ['pending', 'overdue']),
-          supabase.from('expenses').select('amount').eq('site_id', activeSite!.id).gte('expense_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]),
-          supabase.from('dues').select('amount, paid_at, residents(full_name)').eq('site_id', activeSite!.id).eq('status', 'paid').order('paid_at', { ascending: false }).limit(5)
+          supabase.from('residents').select('id', { count: 'exact', head: false }).eq('site_id', siteId).eq('is_active', true),
+          supabase.from('units').select('id', { count: 'exact', head: false }).eq('site_id', siteId),
+          supabase.from('dues').select('amount, status').eq('site_id', siteId).in('status', ['pending', 'overdue']),
+          supabase.from('expenses').select('amount').eq('site_id', siteId).gte('expense_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]),
+          supabase.from('dues').select('amount, paid_at, residents(full_name)').eq('site_id', siteId).eq('status', 'paid').order('paid_at', { ascending: false }).limit(5)
         ])
         
         const { data: paidDues } = await supabase
           .from('dues')
           .select('amount')
-          .eq('site_id', activeSite!.id)
+          .eq('site_id', siteId)
           .eq('status', 'paid')
           .gte('paid_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
         
@@ -58,14 +81,14 @@ export default function DashboardPage() {
           totalCollected
         })
         
-        setRecentActivities(recentPayments.data || [])
+        setRecentActivities((recentPayments.data ?? []) as unknown as RecentActivity[])
       } catch (error) {
         console.error('Dashboard yüklenirken hata:', error)
       }
       setLoading(false)
     }
     
-    load()
+    void load()
   }, [activeSite])
 
   if (!activeSite) {
@@ -123,8 +146,8 @@ export default function DashboardPage() {
             {recentActivities.map((activity, idx) => (
               <div key={idx} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                 <div>
-                  <p className="text-white text-sm">{activity.residents?.full_name}</p>
-                  <p className="text-gray-500 text-xs">{new Date(activity.paid_at).toLocaleDateString('tr-TR')}</p>
+                  <p className="text-white text-sm">{getResidentFullName(activity.residents)}</p>
+                  <p className="text-gray-500 text-xs">{activity.paid_at ? new Date(activity.paid_at).toLocaleDateString('tr-TR') : '-'}</p>
                 </div>
                 <p className="text-green-400 font-medium">{formatCurrency(activity.amount)}</p>
               </div>

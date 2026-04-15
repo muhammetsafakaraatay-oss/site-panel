@@ -1,37 +1,50 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSite } from '../layout'
 import { Send, CheckCircle2, AlertCircle, Loader2, CreditCard } from 'lucide-react'
 
+interface PaymentDue {
+  id: string
+  amount: number
+  due_date: string
+  title: string
+  period: string
+  residents: { full_name: string | null } | { full_name: string | null }[] | null
+}
+
+function getPaymentResident(
+  residents: PaymentDue['residents'],
+) {
+  if (Array.isArray(residents)) {
+    return residents[0] ?? null
+  }
+
+  return residents
+}
+
 export default function PaymentNotificationPage() {
   const { activeSite } = useSite()
-  const [dues, setDues] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [dues, setDues] = useState<PaymentDue[]>([])
+  const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
-  const [selectedDue, setSelectedDue] = useState<any>(null)
+  const [selectedDue, setSelectedDue] = useState<PaymentDue | null>(null)
   const [form, setForm] = useState({ paymentDate: '', notes: '' })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    if (activeSite) {
-      loadUnpaidDues()
-    }
-  }, [activeSite])
+  const loadUnpaidDues = useCallback(async () => {
+    if (!activeSite) return
 
-  async function loadUnpaidDues() {
     const supabase = createClient()
+    setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) return
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single()
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
     const { data } = await supabase
       .from('dues')
@@ -47,9 +60,45 @@ export default function PaymentNotificationPage() {
       .eq('residents.id', user.id)
       .order('due_date')
     
-    setDues(data || [])
+    setDues((data ?? []) as unknown as PaymentDue[])
     setLoading(false)
-  }
+  }, [activeSite])
+
+  useEffect(() => {
+    if (!activeSite) return
+
+    async function loadInitialUnpaidDues() {
+      const supabase = createClient()
+      setLoading(true)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      const { data } = await supabase
+        .from('dues')
+        .select(`
+          id,
+          amount,
+          due_date,
+          title,
+          period,
+          residents!inner(full_name)
+        `)
+        .eq('status', 'pending')
+        .eq('residents.id', user.id)
+        .order('due_date')
+
+      setDues((data ?? []) as unknown as PaymentDue[])
+      setLoading(false)
+    }
+
+    void loadInitialUnpaidDues()
+  }, [activeSite])
 
   async function sendNotification(e: React.FormEvent) {
     e.preventDefault()
@@ -80,7 +129,7 @@ export default function PaymentNotificationPage() {
       setMessage('Ödeme bildiriminiz gönderildi! Yönetici onayı bekleniyor.')
       setForm({ paymentDate: '', notes: '' })
       setSelectedDue(null)
-      loadUnpaidDues()
+      await loadUnpaidDues()
     } else {
       setError(data.error || 'Bir hata oluştu')
     }
@@ -119,6 +168,7 @@ export default function PaymentNotificationPage() {
               <div>
                 <p className="text-white font-medium">{due.title}</p>
                 <p className="text-gray-500 text-sm">{due.period} - Son Tarih: {due.due_date}</p>
+                <p className="text-gray-500 text-xs">{getPaymentResident(due.residents)?.full_name}</p>
                 <p className="text-indigo-400 font-semibold">{due.amount} TL</p>
               </div>
               <button onClick={() => setSelectedDue(due)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm">

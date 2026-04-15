@@ -40,11 +40,17 @@ interface Expense {
   vendor: string | null
 }
 
+interface CategoryDatum {
+  name: string
+  value: number
+  category: string
+}
+
 export default function ExpensesPage() {
   const { activeSite } = useSite()
   const [expenses, setExpenses] = useState<Expense[]>([])
-  const [categoryData, setCategoryData] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [categoryData, setCategoryData] = useState<CategoryDatum[]>([])
+  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showChart, setShowChart] = useState(false)
@@ -64,7 +70,7 @@ export default function ExpensesPage() {
       categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount
     })
     
-    const chartData = Object.entries(categoryTotals).map(([cat, total]) => ({
+    const chartData: CategoryDatum[] = Object.entries(categoryTotals).map(([cat, total]) => ({
       name: CATEGORIES[cat] || cat,
       value: total,
       category: cat
@@ -76,8 +82,31 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     if (!activeSite) return
-    load()
-  }, [activeSite, load])
+    const siteId = activeSite.id
+
+    async function loadInitialExpenses() {
+      const supabase = createClient()
+      setLoading(true)
+      const { data } = await supabase.from('expenses').select('*').eq('site_id', siteId).order('expense_date', { ascending: false })
+      setExpenses((data ?? []) as Expense[])
+
+      const categoryTotals: Record<string, number> = {}
+      data?.forEach((exp) => {
+        categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount
+      })
+
+      const chartData: CategoryDatum[] = Object.entries(categoryTotals).map(([cat, total]) => ({
+        name: CATEGORIES[cat] || cat,
+        value: total,
+        category: cat
+      }))
+      setCategoryData(chartData)
+
+      setLoading(false)
+    }
+
+    void loadInitialExpenses()
+  }, [activeSite])
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()

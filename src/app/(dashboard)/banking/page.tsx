@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSite } from '../layout'
-import { Building2, Copy, Check, Edit2, Save, X, Plus } from 'lucide-react'
+import { Building2, Copy, Check, Edit2, X, Plus, Loader2 } from 'lucide-react'
 
 interface BankAccount {
   id: string
@@ -18,7 +18,7 @@ interface BankAccount {
 export default function BankingPage() {
   const { activeSite } = useSite()
   const [accounts, setAccounts] = useState<BankAccount[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
@@ -30,23 +30,42 @@ export default function BankingPage() {
     iban: ''
   })
 
-  useEffect(() => {
-    if (activeSite) {
-      loadAccounts()
-    }
-  }, [activeSite])
+  const loadAccounts = useCallback(async () => {
+    if (!activeSite) return
 
-  async function loadAccounts() {
     const supabase = createClient()
+    setLoading(true)
+
     const { data } = await supabase
       .from('bank_accounts')
       .select('*')
-      .eq('site_id', activeSite?.id)
+      .eq('site_id', activeSite.id)
       .order('created_at')
-    
-    setAccounts(data || [])
+
+    setAccounts(data ?? [])
     setLoading(false)
-  }
+  }, [activeSite])
+
+  useEffect(() => {
+    if (!activeSite) return
+    const siteId = activeSite.id
+
+    async function loadInitialAccounts() {
+      const supabase = createClient()
+      setLoading(true)
+
+      const { data } = await supabase
+        .from('bank_accounts')
+        .select('*')
+        .eq('site_id', siteId)
+        .order('created_at')
+
+      setAccounts(data ?? [])
+      setLoading(false)
+    }
+
+    void loadInitialAccounts()
+  }, [activeSite])
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -68,7 +87,7 @@ export default function BankingPage() {
     setForm({ bank_name: '', branch: '', account_name: '', account_number: '', iban: '' })
     setShowForm(false)
     setEditingId(null)
-    loadAccounts()
+    await loadAccounts()
   }
 
   async function deleteAccount(id: string) {
@@ -76,7 +95,7 @@ export default function BankingPage() {
     
     const supabase = createClient()
     await supabase.from('bank_accounts').delete().eq('id', id)
-    loadAccounts()
+    await loadAccounts()
   }
 
   function editAccount(account: BankAccount) {
@@ -199,5 +218,3 @@ export default function BankingPage() {
     </div>
   )
 }
-
-import { Loader2 } from 'lucide-react'

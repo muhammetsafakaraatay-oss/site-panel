@@ -1,36 +1,30 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSite } from '../../layout'
 import { useToast } from '@/components/ui/Toast'
 import { Upload, Download, CheckCircle2, Loader2, Building2, Users } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
+type ResidentImportRow = Record<string, string | number | null | undefined>
+
+function getRowValue(row: ResidentImportRow, ...keys: string[]) {
+  for (const key of keys) {
+    const value = row[key]
+    if (value != null && value !== '') {
+      return String(value)
+    }
+  }
+
+  return ''
+}
+
 export default function ImportResidentsPage() {
   const { activeSite } = useSite()
   const { showToast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [preview, setPreview] = useState<any[]>([])
-  const [units, setUnits] = useState<any[]>([])
-
-  // Daire listesini çek
-  useEffect(() => {
-    if (activeSite) {
-      loadUnits()
-    }
-  }, [activeSite])
-
-  async function loadUnits() {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('units')
-      .select('id, unit_no, blocks(name)')
-      .eq('site_id', activeSite?.id)
-      .order('unit_no')
-    
-    setUnits(data || [])
-  }
+  const [preview, setPreview] = useState<ResidentImportRow[]>([])
 
   // Örnek Excel indir
   const downloadTemplate = () => {
@@ -69,8 +63,8 @@ export default function ImportResidentsPage() {
       const data = new Uint8Array(event.target?.result as ArrayBuffer)
       const workbook = XLSX.read(data, { type: 'array' })
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json(sheet)
-      
+      const rows = XLSX.utils.sheet_to_json<ResidentImportRow>(sheet)
+
       setPreview(rows)
       setLoading(false)
     }
@@ -88,11 +82,11 @@ export default function ImportResidentsPage() {
     const errors = []
 
     for (const item of preview) {
-      const fullName = item.full_name || item['Ad Soyad'] || item['isim']
-      const unitNo = item.unit_no?.toString() || item['Daire No']?.toString()
-      const blockName = item.block_name || item['Blok'] || item['block']
-      const phone = item.phone || item['Telefon'] || item['tel']
-      const email = item.email || item['E-posta'] || item['mail']
+      const fullName = getRowValue(item, 'full_name', 'Ad Soyad', 'isim')
+      const unitNo = getRowValue(item, 'unit_no', 'Daire No')
+      const blockName = getRowValue(item, 'block_name', 'Blok', 'block')
+      const phone = getRowValue(item, 'phone', 'Telefon', 'tel')
+      const email = getRowValue(item, 'email', 'E-posta', 'mail')
       const residentType = item.resident_type === 'tenant' ? 'tenant' : 'owner'
 
       if (!fullName || !unitNo) {
@@ -245,10 +239,10 @@ export default function ImportResidentsPage() {
               <tbody>
                 {preview.slice(0, 10).map((item, idx) => (
                   <tr key={idx} className="border-b border-white/5">
-                    <td className="py-2 text-white">{item.full_name || item['Ad Soyad'] || item['isim']}</td>
-                    <td className="py-2 text-white">{item.block_name || item['Blok'] || item['block']}</td>
-                    <td className="py-2 text-white">{item.unit_no || item['Daire No']}</td>
-                    <td className="py-2 text-white">{item.phone || item['Telefon']}</td>
+                    <td className="py-2 text-white">{getRowValue(item, 'full_name', 'Ad Soyad', 'isim')}</td>
+                    <td className="py-2 text-white">{getRowValue(item, 'block_name', 'Blok', 'block')}</td>
+                    <td className="py-2 text-white">{getRowValue(item, 'unit_no', 'Daire No')}</td>
+                    <td className="py-2 text-white">{getRowValue(item, 'phone', 'Telefon', 'tel')}</td>
                     <td className="py-2 text-white">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${(item.resident_type === 'tenant' ? 'bg-orange-500/10 text-orange-400' : 'bg-blue-500/10 text-blue-400')}`}>
                         {item.resident_type === 'tenant' ? 'Kiracı' : 'Malik'}

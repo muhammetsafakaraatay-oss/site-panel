@@ -6,27 +6,36 @@ import { useSite } from './layout'
 import { formatCurrency } from '@/lib/utils'
 import { CreditCard, Users, TrendingDown, AlertCircle } from 'lucide-react'
 
+interface DashboardStats {
+  totalResidents: number
+  pendingDues: number
+  overdueAmount: number
+  monthlyExpenses: number
+}
+
 export default function DashboardPage() {
   const { activeSite } = useSite()
-  const [stats, setStats] = useState({ totalResidents: 0, pendingDues: 0, overdueAmount: 0, monthlyExpenses: 0 })
-  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<DashboardStats>({ totalResidents: 0, pendingDues: 0, overdueAmount: 0, monthlyExpenses: 0 })
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!activeSite) return
+    const siteId = activeSite.id
+
     async function load() {
       const supabase = createClient()
       setLoading(true)
       const [residents, dues, expenses] = await Promise.all([
-        supabase.from('residents').select('id', { count: 'exact' }).eq('site_id', activeSite!.id).eq('is_active', true),
-        supabase.from('dues').select('amount, status').eq('site_id', activeSite!.id).in('status', ['pending', 'overdue']),
-        supabase.from('expenses').select('amount').eq('site_id', activeSite!.id).gte('expense_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]),
+        supabase.from('residents').select('id', { count: 'exact' }).eq('site_id', siteId).eq('is_active', true),
+        supabase.from('dues').select('amount, status').eq('site_id', siteId).in('status', ['pending', 'overdue']),
+        supabase.from('expenses').select('amount').eq('site_id', siteId).gte('expense_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]),
       ])
       const overdueAmount = dues.data?.filter(d => d.status === 'overdue').reduce((s, d) => s + d.amount, 0) ?? 0
       const monthlyExpenses = expenses.data?.reduce((s, e) => s + e.amount, 0) ?? 0
       setStats({ totalResidents: residents.count ?? 0, pendingDues: dues.data?.length ?? 0, overdueAmount, monthlyExpenses })
       setLoading(false)
     }
-    load()
+    void load()
   }, [activeSite])
 
   const cards = [

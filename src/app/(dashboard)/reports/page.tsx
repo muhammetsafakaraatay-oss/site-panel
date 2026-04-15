@@ -1,14 +1,49 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSite } from '../layout'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { FileText, Download, Calendar, TrendingUp, TrendingDown, Printer, FileSpreadsheet, File } from 'lucide-react'
+import { FileText, Calendar, TrendingUp, TrendingDown, Printer, FileSpreadsheet, File } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+
+interface DueReportRow {
+  period: string
+  title: string
+  amount: number
+  status: 'paid' | 'pending' | 'overdue'
+  due_date: string
+  paid_at?: string | null
+  residents: { full_name: string | null } | { full_name: string | null }[] | null
+  units: { unit_no: string | number | null; blocks?: { name: string } | { name: string }[] | null } | { unit_no: string | number | null; blocks?: { name: string } | { name: string }[] | null }[] | null
+}
+
+interface ExpenseReportRow {
+  category: string
+  description: string
+  amount: number
+  expense_date: string
+  vendor: string | null
+}
+
+function getResidentFullName(residents: DueReportRow['residents']) {
+  if (Array.isArray(residents)) {
+    return residents[0]?.full_name ?? '-'
+  }
+
+  return residents?.full_name ?? '-'
+}
+
+function getUnitLabel(units: DueReportRow['units']) {
+  if (Array.isArray(units)) {
+    return units[0]?.unit_no?.toString() ?? '-'
+  }
+
+  return units?.unit_no?.toString() ?? '-'
+}
 
 export default function ReportsPage() {
   const { activeSite } = useSite()
@@ -30,71 +65,74 @@ export default function ReportsPage() {
   })
 
   useEffect(() => {
-    if (activeSite) {
-      loadSummary()
-    }
-  }, [activeSite, startDate, endDate])
-
-  async function loadSummary() {
     if (!activeSite) return
-    setLoading(true)
-    const supabase = createClient()
+    const siteId = activeSite.id
 
-    try {
-      const { data: paidDues } = await supabase
-        .from('dues')
-        .select('amount')
-        .eq('site_id', activeSite.id)
-        .eq('status', 'paid')
-        .gte('paid_at', startDate)
-        .lte('paid_at', endDate)
+    async function loadSummary() {
+      const supabase = createClient()
+      setLoading(true)
 
-      const { data: pendingDues } = await supabase
-        .from('dues')
-        .select('amount')
-        .eq('site_id', activeSite.id)
-        .eq('status', 'pending')
+      try {
+        const { data: paidDues } = await supabase
+          .from('dues')
+          .select('amount')
+          .eq('site_id', siteId)
+          .eq('status', 'paid')
+          .gte('paid_at', startDate)
+          .lte('paid_at', endDate)
 
-      const { data: overdueDues } = await supabase
-        .from('dues')
-        .select('amount')
-        .eq('site_id', activeSite.id)
-        .eq('status', 'overdue')
+        const { data: pendingDues } = await supabase
+          .from('dues')
+          .select('amount')
+          .eq('site_id', siteId)
+          .eq('status', 'pending')
 
-      const { data: expenses } = await supabase
-        .from('expenses')
-        .select('amount')
-        .eq('site_id', activeSite.id)
-        .gte('expense_date', startDate)
-        .lte('expense_date', endDate)
+        const { data: overdueDues } = await supabase
+          .from('dues')
+          .select('amount')
+          .eq('site_id', siteId)
+          .eq('status', 'overdue')
 
-      const totalIncome = paidDues?.reduce((s, d) => s + d.amount, 0) || 0
-      const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) || 0
-      const collectedDues = paidDues?.length || 0
-      const pendingDuesCount = pendingDues?.length || 0
-      const overdueDuesAmount = overdueDues?.reduce((s, d) => s + d.amount, 0) || 0
+        const { data: expenses } = await supabase
+          .from('expenses')
+          .select('amount')
+          .eq('site_id', siteId)
+          .gte('expense_date', startDate)
+          .lte('expense_date', endDate)
 
-      setSummary({
-        totalIncome,
-        totalExpense,
-        netProfit: totalIncome - totalExpense,
-        collectedDues,
-        pendingDues: pendingDuesCount,
-        overdueDues: overdueDuesAmount
-      })
-    } catch (error) {
-      console.error('Rapor yüklenirken hata:', error)
+        const totalIncome = paidDues?.reduce((s, d) => s + d.amount, 0) || 0
+        const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) || 0
+        const collectedDues = paidDues?.length || 0
+        const pendingDuesCount = pendingDues?.length || 0
+        const overdueDuesAmount = overdueDues?.reduce((s, d) => s + d.amount, 0) || 0
+
+        setSummary({
+          totalIncome,
+          totalExpense,
+          netProfit: totalIncome - totalExpense,
+          collectedDues,
+          pendingDues: pendingDuesCount,
+          overdueDues: overdueDuesAmount
+        })
+      } catch (error) {
+        console.error('Rapor yüklenirken hata:', error)
+      }
+
+      setLoading(false)
     }
-    setLoading(false)
-  }
+
+    void loadSummary()
+  }, [activeSite, startDate, endDate])
 
   async function exportToExcel() {
     if (!activeSite) return
+    const siteId = activeSite.id
+    const siteName = activeSite.name
     setLoading(true)
     const supabase = createClient()
 
     try {
-      let data = []
+      let data: Array<Record<string, string | number>> = []
       
       if (reportType === 'dues') {
         const { data: dues } = await supabase
@@ -109,34 +147,33 @@ export default function ReportsPage() {
             residents (full_name),
             units (unit_no, blocks (name))
           `)
-          .eq('site_id', activeSite.id)
+          .eq('site_id', siteId)
 
-        // @ts-ignore - tip hatasını geç
-        data = dues?.map((d: any) => ({
+        data = ((dues ?? []) as unknown as DueReportRow[]).map((d) => ({
           'Dönem': d.period,
           'Aidat Adı': d.title,
           'Tutar': d.amount,
           'Durum': d.status === 'paid' ? 'Ödendi' : d.status === 'pending' ? 'Bekliyor' : 'Gecikmiş',
           'Son Tarih': d.due_date,
           'Ödeme Tarihi': d.paid_at || '-',
-          'Sakin': d.residents?.full_name || '-',
-          'Daire': d.units?.unit_no || '-'
-        })) || []
+          'Sakin': getResidentFullName(d.residents),
+          'Daire': getUnitLabel(d.units)
+        }))
       } else {
         const { data: expenses } = await supabase
           .from('expenses')
           .select('*')
-          .eq('site_id', activeSite.id)
+          .eq('site_id', siteId)
           .gte('expense_date', startDate)
           .lte('expense_date', endDate)
 
-        data = expenses?.map(e => ({
+        data = ((expenses ?? []) as unknown as ExpenseReportRow[]).map((e) => ({
           'Kategori': e.category,
           'Açıklama': e.description,
           'Tutar': e.amount,
           'Tarih': e.expense_date,
           'Tedarikçi': e.vendor || '-'
-        })) || []
+        }))
       }
 
       const ws = XLSX.utils.json_to_sheet(data)
@@ -144,7 +181,7 @@ export default function ReportsPage() {
       XLSX.utils.book_append_sheet(wb, ws, 'Rapor')
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([excelBuffer], { type: 'application/octet-stream' })
-      saveAs(blob, `${activeSite.name}_${reportType}_raporu.xlsx`)
+      saveAs(blob, `${siteName}_${reportType}_raporu.xlsx`)
     } catch (error) {
       console.error('Excel export hatası:', error)
       alert('Excel export edilirken hata oluştu')
@@ -154,13 +191,15 @@ export default function ReportsPage() {
 
   async function exportToPDF() {
     if (!activeSite) return
+    const siteId = activeSite.id
+    const siteName = activeSite.name
     setLoading(true)
     const supabase = createClient()
     const doc = new jsPDF()
 
     try {
-      let data = []
-      let headers = []
+      let data: string[][] = []
+      let headers: string[] = []
       
       if (reportType === 'dues') {
         const { data: dues } = await supabase
@@ -174,41 +213,40 @@ export default function ReportsPage() {
             residents (full_name),
             units (unit_no)
           `)
-          .eq('site_id', activeSite.id)
+          .eq('site_id', siteId)
 
-        // @ts-ignore
-        data = dues?.map((d: any) => [
+        data = ((dues ?? []) as unknown as DueReportRow[]).map((d) => [
           d.period,
           d.title,
           formatCurrency(d.amount),
           d.status === 'paid' ? 'Ödendi' : d.status === 'pending' ? 'Bekliyor' : 'Gecikmiş',
           d.due_date,
-          d.residents?.full_name || '-',
-          d.units?.unit_no || '-'
-        ]) || []
+          getResidentFullName(d.residents),
+          getUnitLabel(d.units)
+        ])
         
         headers = ['Dönem', 'Aidat Adı', 'Tutar', 'Durum', 'Son Tarih', 'Sakin', 'Daire']
       } else {
         const { data: expenses } = await supabase
           .from('expenses')
           .select('*')
-          .eq('site_id', activeSite.id)
+          .eq('site_id', siteId)
           .gte('expense_date', startDate)
           .lte('expense_date', endDate)
 
-        data = expenses?.map(e => [
+        data = ((expenses ?? []) as unknown as ExpenseReportRow[]).map((e) => [
           e.category,
           e.description,
           formatCurrency(e.amount),
           e.expense_date,
           e.vendor || '-'
-        ]) || []
+        ])
         
         headers = ['Kategori', 'Açıklama', 'Tutar', 'Tarih', 'Tedarikçi']
       }
 
       doc.setFontSize(18)
-      doc.text(`${activeSite.name} - ${reportType === 'dues' ? 'Aidat Raporu' : 'Gider Raporu'}`, 14, 20)
+      doc.text(`${siteName} - ${reportType === 'dues' ? 'Aidat Raporu' : 'Gider Raporu'}`, 14, 20)
       doc.setFontSize(10)
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 30)
       doc.text(`Dönem: ${formatDate(startDate)} - ${formatDate(endDate)}`, 14, 37)
@@ -221,7 +259,7 @@ export default function ReportsPage() {
         headStyles: { fillColor: [79, 70, 229] }
       })
 
-      doc.save(`${activeSite.name}_${reportType}_raporu.pdf`)
+      doc.save(`${siteName}_${reportType}_raporu.pdf`)
     } catch (error) {
       console.error('PDF export hatası:', error)
       alert('PDF export edilirken hata oluştu')
