@@ -42,8 +42,8 @@ export default function LoginPage() {
     setError('')
     
     const { error } = await supabase.auth.signInWithPassword({ 
-      email: 'demo@siteyonetimapp.com', 
-      password: 'demo123456'
+      email: 'deneme@siteyonetimapp.com', 
+      password: 'Deneme123'
     })
     
     if (error) { 
@@ -140,7 +140,7 @@ export default function LoginPage() {
           </p>
           
           <p className="text-center text-gray-600 text-xs mt-4">
-            Demo hesap: demo@siteyonetimapp.com / demo123456
+            Demo hesap: deneme@siteyonetimapp.com / Deneme123
           </p>
         </div>
       </div>
