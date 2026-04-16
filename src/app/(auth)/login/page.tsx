@@ -41,19 +41,32 @@ export default function LoginPage() {
     setDemoLoading(true)
     setError('')
     
-    const { error } = await supabase.auth.signInWithPassword({ 
-      email: 'deneme@siteyonetimapp.com', 
-      password: 'Deneme123'
-    })
-    
-    if (error) { 
-      setError('Demo hesap geçici olarak devre dışı. Lütfen daha sonra tekrar deneyin.') 
-      setDemoLoading(false)
-      return 
+    try {
+      const res = await fetch('/api/demo/create', { method: 'POST' })
+      const data = await res.json()
+      
+      if (data.error) {
+        setError(data.error)
+        setDemoLoading(false)
+        return
+      }
+      
+      // Otomatik giriş yap
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password
+      })
+      
+      if (error) {
+        setError(error.message)
+      } else {
+        router.push('/')
+        router.refresh()
+      }
+    } catch (err) {
+      setError('Demo hesap oluşturulamadı. Lütfen tekrar deneyin.')
     }
-    
-    router.push('/')
-    router.refresh()
+    setDemoLoading(false)
   }
 
   return (
@@ -137,10 +150,6 @@ export default function LoginPage() {
           <p className="text-center text-gray-600 text-sm mt-6">
             Hesabınız yok mu?{' '}
             <Link href="/register" className="text-indigo-400 hover:text-indigo-300">Şirket kaydı oluşturun</Link>
-          </p>
-          
-          <p className="text-center text-gray-600 text-xs mt-4">
-            Demo hesap: deneme@siteyonetimapp.com / Deneme123
           </p>
         </div>
       </div>
